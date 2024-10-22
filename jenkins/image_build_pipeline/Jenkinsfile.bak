@@ -1,0 +1,157 @@
+/*pipeline {
+    agent any
+    environment {
+        DOCKER_REGISTRY = "https://harbor.ryan-dev.net/"
+        DOCKER_IMAGE = "harbor.ryan-dev.net/ryan/ryan-nginx"
+        DOCKER_CREDENTIALS_ID = "harbor"
+        IMAGE_VERSION = 2
+    }
+
+
+    stages {
+        stage('Build') {
+            steps {
+                script {
+                    // Build Docker image
+                    docker.build "${DOCKER_IMAGE}:v${IMAGE_VERSION}"
+                }
+            }
+        }
+        stage('Push') {
+            steps {
+                script {
+                    // Login to Harbor registry
+                    docker.withRegistry("${DOCKER_REGISTRY}", "${DOCKER_CREDENTIALS_ID}") {
+                        // Push the Docker image
+                        docker.image("${DOCKER_IMAGE}:v${IMAGE_VERSION}").push("v${IMAGE_VERSION}")
+                    }
+                }
+            }
+        }
+    }
+}
+*/
+
+/*pipeline {
+    agent any
+    environment {
+        DOCKER_REGISTRY = "https://harbor.ryan-dev.net/"
+        DOCKER_IMAGE = "harbor.ryan-dev.net/ryan/ryan-nginx"
+        DOCKER_CREDENTIALS_ID = "harbor"
+        IMAGE_VERSION = 13
+        GIT_CREDENTIALS_ID = "giltlab"  // GitLab 자격증명 ID
+        GIT_REPO = "133.186.219.228/ryan-dev/manifest.git"  // GitLab 리포지토리 주소
+        YAML_FILE_PATH = "deploy.yaml"  // 수정할 YAML 파일 경로 및 이름
+        GIT_BRANCH = "main"
+    }
+
+    stages {
+        stage('Build') {
+            steps {
+                script {
+                    // Docker 이미지 빌드
+                    docker.build("${DOCKER_IMAGE}:v${IMAGE_VERSION}")
+                }
+            }
+        }
+        stage('Push Image') {
+            steps {
+                script {
+                    // Harbor 레지스트리에 로그인 후 이미지 푸시
+                    docker.withRegistry("${DOCKER_REGISTRY}", "${DOCKER_CREDENTIALS_ID}") {
+                        docker.image("${DOCKER_IMAGE}:v${IMAGE_VERSION}").push("v${IMAGE_VERSION}")
+                    }
+                }
+            }
+        }
+        stage('Update YAML and Push to Git') {
+            steps {
+                script {
+                    // GitLab 자격증명 사용하여 인증
+                    withCredentials([usernamePassword(credentialsId: "${GIT_CREDENTIALS_ID}", usernameVariable: 'GIT_USERNAME', passwordVariable: 'GIT_PASSWORD')]) {
+                        // GitLab에서 YAML 파일을 수정하고 푸시
+                        sh '''
+                        git config --global user.email "ryan@securepoint.co.kr"
+                        git config --global user.name "ryan-dev"
+
+                        if [ -d "manifest" ]; then
+                            echo "Directory 'manifest' already exists, pulling latest changes."
+                            cd \$(basename ${GIT_REPO} .git)
+                            git pull
+                        else
+                            echo "Cloning repository"
+                            git clone http://${GIT_USERNAME}:${GIT_PASSWORD}@${GIT_REPO}
+                            cd \$(basename ${GIT_REPO} .git)
+                        fi
+                        
+                        
+                        # YAML 파일에서 IMAGE_VERSION 값 수정
+                        sed -i 's|image: ${DOCKER_IMAGE}:.*|image: ${DOCKER_IMAGE}:v${IMAGE_VERSION}|' ${YAML_FILE_PATH}
+                        
+                        if git diff --quiet; then
+                            echo "No changes to commit."
+                        else
+                            echo "Committing and pushing changes."
+                            git add ${YAML_FILE_PATH}
+                            git commit -m "Update image version to v${IMAGE_VERSION}"
+                            git push http://${GIT_USERNAME}:${GIT_PASSWORD}@${GIT_REPO}
+                        fi
+                        
+                        # 수정된 파일 커밋 및 푸시
+                        #git add ${YAML_FILE_PATH}
+                        #git commit -m "Update image version to v${IMAGE_VERSION}"
+                        #git push http://${GIT_USERNAME}:${GIT_PASSWORD}@${GIT_REPO} ${GIT_BRANCH}  # 혹은 사용 중인 브랜치
+                        '''
+                    }
+                }
+            }
+        }
+    }
+}*/
+
+
+pipeline {
+    agent any
+    environment {
+        DOCKER_REGISTRY = "https://harbor.ryan-dev.net/"
+        DOCKER_IMAGE = "harbor.ryan-dev.net/ryan/ryan-nginx"
+        DOCKER_CREDENTIALS_ID = "harbor"
+        IMAGE_VERSION = 22
+    }
+    
+
+    /*stages {
+        stage('checkout scm') {
+            steps {
+                checkout scm  
+            }
+        }*/
+        stage('Build') {
+            steps {
+                script {
+                    // Docker 이미지 빌드
+                    docker.build("${DOCKER_IMAGE}:v${IMAGE_VERSION}")
+                }
+            }
+        }
+        stage('Push Image') {
+            steps {
+                script {
+                    // Harbor 레지스트리에 로그인 후 이미지 푸시
+                    docker.withRegistry("${DOCKER_REGISTRY}", "${DOCKER_CREDENTIALS_ID}") {
+                        docker.image("${DOCKER_IMAGE}:v${IMAGE_VERSION}").push("v${IMAGE_VERSION}")
+                    }
+                }
+            }
+        }
+        stage('Trigger YAML Update Pipeline') {
+            steps {
+                script {
+                    // 2번 파이프라인 트리거 (이미지 태그 전달)
+                    build job: 'menifest', parameters: [string(name: 'IMAGE_NAME', value: "${DOCKER_IMAGE}:v${IMAGE_VERSION}")]
+                }
+            }
+        }
+    }
+}
+

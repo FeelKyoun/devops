@@ -1,0 +1,51 @@
+pipeline {
+    agent any
+    environment {
+        GIT_CREDENTIALS_ID = "giltlab"  // GitLab 자격증명 ID
+        YAML_FILE_PATH = "deploy.yaml"  // 수정할 YAML 파일 경로 및 이름
+        GIT_REPO = "${GIT_URL}/ryan-dev/manifest.git"
+        GIT_BRANCH = "main"
+    }
+
+    parameters {
+        string(name: "IMAGE_NAME", description: 'Docker Image Name from Pipeline 1')
+    }
+
+    stages {
+        stage('Clone repository') {
+            steps {
+                checkout scm  // Git 레포지토리 클론
+            }
+        }
+
+        stage('Update deploy.yaml') {
+            steps {
+                script {
+                    echo "Updating YAML with image: ${IMAGE_NAME}"
+                    sh "sed -i 's|image: .*|image: ${IMAGE_NAME}|' ${YAML_FILE_PATH}"
+                }
+            }
+        }
+
+        stage('Commit and Push') {
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: "${GIT_CREDENTIALS_ID}", usernameVariable: 'GIT_USERNAME', passwordVariable: 'GIT_PASSWORD')]) {
+                        sh'''
+                        if git diff --quiet; then
+							echo "No changes to commit."
+						else
+							echo "Committing and pushing changes."
+                        	git config user.email "user email ryan@securepoint.co.kr"
+                        	git config user.name "user name ryan-dev"
+                        	git add .
+                        	git commit -m "Update image tag ${IMAGE_NAME} in deploy.yaml"
+                        	git push http://${GIT_USERNAME}:${GIT_PASSWORD}@${GIT_REPO} HEAD:${GIT_BRANCH}
+						fi
+                        '''
+                    }
+                }
+            }
+        }
+    }
+}

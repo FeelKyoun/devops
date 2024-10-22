@@ -1,0 +1,37 @@
+pipeline {
+    agent any
+    environment {
+        DOCKER_REGISTRY = "https://harbor.ryan-dev.net/"
+        DOCKER_IMAGE = "harbor.ryan-dev.net/ryan/ryan-nginx"
+        DOCKER_CREDENTIALS_ID = "harbor"
+        IMAGE_VERSION = 1
+    }
+        stage('Build') {
+            steps {
+                script {
+                    // Docker 이미지 빌드
+                    docker.build("${DOCKER_IMAGE}:v${IMAGE_VERSION}")
+                }
+            }
+        }
+        stage('Push Image') {
+            steps {
+                script {
+                    // Harbor 레지스트리에 로그인 후 이미지 푸시
+                    docker.withRegistry("${DOCKER_REGISTRY}", "${DOCKER_CREDENTIALS_ID}") {
+                        docker.image("${DOCKER_IMAGE}:v${IMAGE_VERSION}").push("v${IMAGE_VERSION}")
+                    }
+                }
+            }
+        }
+        stage('Trigger YAML Update Pipeline') {
+            steps {
+                script {
+                    // 2번 파이프라인 트리거 (이미지 태그 전달)
+                    build job: 'menifest', parameters: [string(name: 'IMAGE_NAME', value: "${DOCKER_IMAGE}:v${IMAGE_VERSION}")]
+                }
+            }
+        }
+    }
+}
+
